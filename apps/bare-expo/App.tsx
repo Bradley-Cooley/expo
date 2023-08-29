@@ -1,82 +1,99 @@
-import React from 'react';
+import { VideoView, useVideoPlayer } from '@expo/video';
+import React, { useCallback, useEffect, useRef } from 'react';
+import { PixelRatio, ScrollView, StyleSheet, View } from 'react-native';
 
-import MainNavigator, { optionalRequire } from './MainNavigator';
-import { createProxy, startAsync, addListener } from './relapse/client';
-let Notifications;
-try {
-  Notifications = require('expo-notifications');
-} catch {
-  // do nothing
-}
+import Button from 'native-component-list/src/components/Button';
 
-const loadAssetsAsync =
-  optionalRequire(() => require('native-component-list/src/utilities/loadAssetsAsync')) ??
-  (async () => null);
+export default function VideoScreen() {
+  const ref = useRef<VideoView>(null);
 
-function useLoaded() {
-  const [isLoaded, setLoaded] = React.useState(false);
-  React.useEffect(() => {
-    let isMounted = true;
-    // @ts-ignore
-    loadAssetsAsync()
-      .then(() => {
-        if (isMounted) setLoaded(true);
-      })
-      .catch((e) => {
-        console.warn('Error loading assets: ' + e.message);
-        if (isMounted) setLoaded(true);
-      });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-  return isLoaded;
-}
+  const enterFullscreen = useCallback(() => {
+    ref.current?.enterFullscreen();
+  }, [ref]);
 
-export default function Main() {
-  // @ts-ignore
-  if (global.DETOX) {
-    React.useEffect(() => {
-      addListener((data) => {
-        if (data.globals) {
-          for (const moduleName of data.globals) {
-            // @ts-ignore
-            global[moduleName] = createProxy(moduleName);
-          }
-        }
-      });
+  const player = useVideoPlayer(
+    'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
+  );
 
-      let stop;
-      startAsync().then((_stop) => (stop = _stop));
-
-      return () => stop && stop();
-    }, []);
-  }
-
-  React.useEffect(() => {
-    try {
-      const subscription = Notifications.addNotificationResponseReceivedListener(
-        ({ notification, actionIdentifier }) => {
-          console.info(
-            `User interacted with a notification (action = ${actionIdentifier}): ${JSON.stringify(
-              notification,
-              null,
-              2
-            )}`
-          );
-        }
-      );
-      return () => subscription?.remove();
-    } catch (e) {
-      console.debug('Could not have added a listener for received notification responses.', e);
+  const togglePlayer = useCallback(() => {
+    if (player.isPlaying) {
+      player.pause();
+    } else {
+      player.play();
     }
+  }, [player]);
+
+  const replaceItem = useCallback(() => {
+    player.replace(
+      'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4'
+    );
   }, []);
 
-  const isLoaded = useLoaded();
+  useEffect(() => {
+    player.play();
+  }, []);
 
-  if (!isLoaded) {
-    return null;
-  }
+  return (
+    <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+      <VideoView
+        nativeRef={ref}
+        style={styles.video}
+        player={player}
+        nativeControls={false}
+        contentFit="contain"
+        contentPosition={{ dx: 0, dy: 0 }}
+        allowsFullscreen
+        canControlPlayback
+        volumeControls={false}
+        showsTimecodes={false}
+        requiresLinearPlayback
+      />
 
-  return <MainNavigator />;
+      <VideoView
+        nativeRef={ref}
+        style={styles.video}
+        player={player}
+        nativeControls
+        contentFit="contain"
+        contentPosition={{ dx: 0, dy: 0 }}
+        allowsFullscreen
+        canControlPlayback
+        volumeControls={false}
+        showsTimecodes={false}
+        requiresLinearPlayback
+      />
+
+      <View style={styles.buttons}>
+        <Button style={styles.button} title="Toggle" onPress={togglePlayer} />
+        <Button style={styles.button} title="Replace" onPress={replaceItem} />
+        <Button style={styles.button} title="Enter fullscreen" onPress={enterFullscreen} />
+      </View>
+    </ScrollView>
+  );
 }
+VideoScreen.navigationOptions = {
+  title: 'Video',
+};
+
+const styles = StyleSheet.create({
+  scrollView: {
+    paddingTop: 50,
+    backgroundColor: 'white',
+  },
+  contentContainer: {
+    padding: 10,
+    alignItems: 'center',
+  },
+  video: {
+    width: 400,
+    height: 300,
+    borderBottomWidth: 1.0 / PixelRatio.get(),
+    borderBottomColor: '#cccccc',
+  },
+  buttons: {
+    flexDirection: 'row',
+  },
+  button: {
+    margin: 15,
+  },
+});
